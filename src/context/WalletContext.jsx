@@ -1,6 +1,6 @@
 // src/context/WalletContext.jsx
 import { createContext, useContext, useState, useEffect } from "react";
-import { BrowserConnectClient } from "@gala-chain/connect";
+import { BrowserConnectClient,  } from "@gala-chain/connect";
 
 const WalletContext = createContext();
 
@@ -182,35 +182,6 @@ export function WalletProvider({ children }) {
   // All gameplay transactions and on-chain interactions use GalaChain wallet
   // MetaMask is NEVER used for transactions - only for ETH-GALA detection
 
-  // Check if GalaWallet extension is available
-  const detectGalaWallet = () => {
-    if (typeof window === "undefined") return null;
-    
-    // GalaWallet might expose itself in different ways
-    // Check for window.gala first (GalaWallet specific)
-    console.log("gala", window.gala);
-    console.log("eth", window.ethereum);
-    if (window.gala) {
-      return { provider: window.gala, type: "gala" };
-    }
-    
-    // Check if ethereum provider exists and might be GalaWallet
-    if (window.ethereum) {
-      // Check if it's GalaWallet by looking for Gala-specific properties
-      if (window.ethereum.isGala || window.ethereum.isGalaWallet) {
-        return { provider: window.ethereum, type: "gala-ethereum" };
-      }
-      // If it's MetaMask, don't use it for GalaChain connection
-    //   if (window.ethereum.isMetaMask) {
-    //     return null; // MetaMask is only for ETH-GALA detection, not GalaChain
-    //   }
-      // If no other wallet is detected and it's not MetaMask, assume it might be GalaWallet
-      return { provider: window.ethereum, type: "ethereum" };
-    }
-    
-    return null;
-  };
-
   // Connect to GalaChain Wallet (PRIMARY - used for ALL game transactions)
   const connectWallet = async () => {
     try {
@@ -218,21 +189,7 @@ export function WalletProvider({ children }) {
       setError(null);
 
       // Wait a bit for extension to inject if it's still loading
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Detect available wallet provider
-      const walletInfo = detectGalaWallet();
-      
-      if (!walletInfo || !walletInfo.provider) {
-        const errorMsg = 
-          "GalaWallet extension not detected. " +
-          "Please ensure:\n" +
-          "1. Gala Web3 Wallet extension is installed\n" +
-          "2. Extension is enabled in your browser\n" +
-          "3. Browser has been restarted after installation\n" +
-          "4. Extension popup is unlocked";
-        throw new Error(errorMsg);
-      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // BrowserConnectClient requires window.ethereum to be available
       // GalaWallet extension should inject window.ethereum
@@ -260,21 +217,54 @@ export function WalletProvider({ children }) {
         );
       }
 
-      // Verify it's actually GalaWallet (optional check)
-      console.log("Detected provider:", {
+      // Log detected provider for debugging
+      console.log("🔍 Detected provider:", {
         hasEthereum: !!window.ethereum,
         hasGala: !!window.gala,
+        isMetaMask: window.ethereum?.isMetaMask,
+        isGala: window.ethereum?.isGala,
         providerInfo: window.ethereum?.isMetaMask ? "MetaMask" : 
                       window.ethereum?.isGala ? "GalaWallet" : 
                       window.gala ? "GalaWallet (window.gala)" :
                       "Unknown provider"
       });
 
+      // If only MetaMask is available (and not GalaWallet), we can't use it for GalaChain
+      // But if both are available, BrowserConnectClient will use the first one
+      // We need to ensure GalaWallet is being used, not MetaMask
+      if (window.ethereum.isMetaMask && !window.ethereum.isGala && !window.gala) {
+        throw new Error(
+          "Only MetaMask detected. GalaWallet extension is required for GalaChain connections. " +
+          "Please install the Gala Web3 Wallet extension from the Chrome Web Store."
+        );
+      }
+
       // Initialize BrowserConnectClient
-      // It should auto-detect window.ethereum
+      // BrowserConnectClient will use window.ethereum automatically
+      // If GalaWallet is installed, it should inject window.ethereum
       const web3Wallet = new BrowserConnectClient();
+      
+      // Store client instance for later use (for signing transactions)
+      setGalaClient(web3Wallet);
+
+      // Set up account change listener
+      web3Wallet.on("accountChanged", (account) => {
+        if (account) {
+          const address = Array.isArray(account) ? account[0] : account;
+          setWalletAddress(address);
+          localStorage.setItem("gala_wallet_address", address);
+          console.log("✅ GalaChain wallet account changed:", address);
+        } else {
+          setWalletAddress(null);
+          setGalaClient(null);
+          localStorage.removeItem("gala_wallet_address");
+          console.log("ℹ️ GalaChain wallet disconnected");
+        }
+      });
 
       // Attempt connection
+      // This will call eth_requestAccounts and return GalaChain address
+      console.log("🔄 Attempting to connect to GalaChain wallet...");
       const connectionResult = await web3Wallet.connect();
       
       if (!connectionResult) {
@@ -284,11 +274,10 @@ export function WalletProvider({ children }) {
       // Store GalaChain wallet address (this is the ONLY wallet used for transactions)
       setWalletAddress(connectionResult);
       localStorage.setItem("gala_wallet_address", connectionResult);
-      console.log("Connected to GalaChain Wallet (PRIMARY):", connectionResult);
-      console.log(`GalaChain wallet connected: ${connectionResult}`);
-      console.log("Note: All game transactions will use this GalaChain wallet address");
+      console.log("✅ Connected to GalaChain Wallet (PRIMARY):", connectionResult);
+      console.log("📝 Note: All game transactions will use this GalaChain wallet address");
     } catch (err) {
-      console.error("Failed to connect wallet:", err);
+      console.error("❌ Failed to connect wallet:", err);
       
       // Provide more helpful error messages
       let errorMessage = err.message || "Failed to connect wallet.";
@@ -296,9 +285,13 @@ export function WalletProvider({ children }) {
       if (err.message && err.message.includes("Ethereum provider not found")) {
         errorMessage = 
           "GalaWallet extension not detected. " +
-          "Please ensure the Gala Web3 Wallet extension is installed, enabled, and unlocked. " +
-          "You may need to restart your browser after installing the extension.";
-      } else if (err.message && err.message.includes("User rejected")) {
+          "Please ensure:\n" +
+          "1. Gala Web3 Wallet extension is installed\n" +
+          "2. Extension is enabled in your browser\n" +
+          "3. Extension popup is unlocked\n" +
+          "4. Browser has been restarted after installation\n" +
+          "5. Page has been refreshed";
+      } else if (err.message && (err.message.includes("User rejected") || err.message.includes("rejected"))) {
         errorMessage = "Connection cancelled. Please approve the connection request in GalaWallet.";
       }
       
@@ -311,13 +304,25 @@ export function WalletProvider({ children }) {
   // Disconnect GalaChain wallet (PRIMARY wallet)
   const disconnectWallet = async () => {
     try {
-      const web3Wallet = new BrowserConnectClient();
-      await web3Wallet.disconnect();
+      setIsConnecting(true);
+      
+      // Use stored client instance if available, otherwise create new one
+      if (galaClient) {
+        galaClient.disconnect();
+      } else {
+        // Only create new client if window.ethereum is available
+        if (window.ethereum) {
+          const web3Wallet = new BrowserConnectClient();
+          web3Wallet.disconnect();
+        }
+      }
+      
       setWalletAddress(null);
+      setGalaClient(null);
       localStorage.removeItem("gala_wallet_address");
-      console.log("Wallet disconnected");
+      console.log("✅ GalaChain wallet disconnected");
     } catch (err) {
-      console.error("Failed to disconnect wallet:", err);
+      console.error("❌ Failed to disconnect wallet:", err);
       setError(err.message || "Failed to disconnect wallet. Please try again.");
     } finally {
       setIsConnecting(false);
@@ -338,6 +343,7 @@ export function WalletProvider({ children }) {
     // GALACHAIN WALLET (PRIMARY - ALL TRANSACTIONS)
     // ============================================================
     walletAddress, // GalaChain wallet address - used for ALL game transactions
+    galaClient, // BrowserConnectClient instance - use for signing transactions
     isConnecting,
     error,
     connectWallet, // Connect to GalaChain wallet (PRIMARY)
