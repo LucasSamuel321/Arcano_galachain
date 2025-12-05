@@ -235,12 +235,12 @@ export function WalletProvider({ children }) {
       // If only MetaMask is available (and not GalaWallet), we can't use it for GalaChain
       // But if both are available, BrowserConnectClient will use the first one
       // We need to ensure GalaWallet is being used, not MetaMask
-      if (window.ethereum.isMetaMask && !window.ethereum.isGala && !window.gala) {
-        throw new Error(
-          "Only MetaMask detected. GalaWallet extension is required for GalaChain connections. " +
-          "Please install the Gala Web3 Wallet extension from the Chrome Web Store."
-        );
-      }
+    //   if (window.ethereum.isMetaMask && !window.ethereum.isGala && !window.gala) {
+    //     throw new Error(
+    //       "Only MetaMask detected. GalaWallet extension is required for GalaChain connections. " +
+    //       "Please install the Gala Web3 Wallet extension from the Chrome Web Store."
+    //     );
+    //   }
 
       // Initialize BrowserConnectClient
       // BrowserConnectClient will use window.ethereum automatically
