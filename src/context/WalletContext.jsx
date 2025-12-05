@@ -201,9 +201,9 @@ export function WalletProvider({ children }) {
         return { provider: window.ethereum, type: "gala-ethereum" };
       }
       // If it's MetaMask, don't use it for GalaChain connection
-      if (window.ethereum.isMetaMask) {
-        return null; // MetaMask is only for ETH-GALA detection, not GalaChain
-      }
+    //   if (window.ethereum.isMetaMask) {
+    //     return null; // MetaMask is only for ETH-GALA detection, not GalaChain
+    //   }
       // If no other wallet is detected and it's not MetaMask, assume it might be GalaWallet
       return { provider: window.ethereum, type: "ethereum" };
     }
@@ -239,27 +239,25 @@ export function WalletProvider({ children }) {
       if (!window.ethereum) {
         // Check if window.gala exists but window.ethereum doesn't
         if (window.gala) {
-        //   throw new Error(
-        //     "GalaWallet extension detected (window.gala), but window.ethereum is not available. " +
-        //     "The GalaWallet extension needs to inject window.ethereum for BrowserConnectClient to work. " +
-        //     "Please:\n" +
-        //     "1. Open GalaWallet extension popup\n" +
-        //     "2. Check extension settings to enable 'Inject Ethereum provider'\n" +
-        //     "3. Refresh this page\n" +
-        //     "4. Try connecting again"
-        //   );
-        } else {
-
-            throw new Error(
-              "Ethereum provider (window.ethereum) not found. " +
-              "GalaWallet extension should inject window.ethereum. " +
-              "Please ensure:\n" +
-              "1. GalaWallet extension is installed and enabled\n" +
-              "2. Extension popup is unlocked\n" +
-              "3. Page has been refreshed after installing the extension\n" +
-              "4. No other extensions are blocking wallet injection"
-            );
+          throw new Error(
+            "GalaWallet extension detected (window.gala), but window.ethereum is not available. " +
+            "The GalaWallet extension needs to inject window.ethereum for BrowserConnectClient to work. " +
+            "Please:\n" +
+            "1. Open GalaWallet extension popup\n" +
+            "2. Check extension settings to enable 'Inject Ethereum provider'\n" +
+            "3. Refresh this page\n" +
+            "4. Try connecting again"
+          );
         }
+        throw new Error(
+          "Ethereum provider (window.ethereum) not found. " +
+          "GalaWallet extension should inject window.ethereum. " +
+          "Please ensure:\n" +
+          "1. GalaWallet extension is installed and enabled\n" +
+          "2. Extension popup is unlocked\n" +
+          "3. Page has been refreshed after installing the extension\n" +
+          "4. No other extensions are blocking wallet injection"
+        );
       }
 
       // Verify it's actually GalaWallet (optional check)
