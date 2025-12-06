@@ -1,3 +1,4 @@
+import { BrowserConnectClient } from "@gala-chain/connect";
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 
 const WalletContext = createContext(null);
@@ -6,10 +7,15 @@ export function WalletProvider({ children }) {
   const [account, setAccount] = useState(null);
   const [chainId, setChainId] = useState(null);
   const [provider, setProvider] = useState(null);
+  const [galaClient, setGalaClient] = useState(null);
 
   const detectProvider = useCallback(() => {
     if (typeof window === "undefined") return null;
     // Common injections
+    console.log("gala", window.gala);
+    console.log("ethereum", window.ethereum);
+    console.log("web3", window.web3);
+    console.log("injectedWeb3", window.injectedWeb3);
     if (window.gala) return window.gala;
     if (window.ethereum) return window.ethereum;
     if (window.web3 && window.web3.currentProvider) return window.web3.currentProvider;
@@ -75,32 +81,121 @@ export function WalletProvider({ children }) {
     }
     try {
       // Standard request accounts for ethereum-compatible providers
-      let accounts;
-      if (p.request) {
-        accounts = await p.request({ method: "eth_requestAccounts" });
-      } else if (p.enable) {
-        accounts = await p.enable();
-      }
-      setProvider(p);
-      handleAccounts(accounts);
-      // try to read chain id
-      try {
-        const id = await (p.request ? p.request({ method: "eth_chainId" }) : null);
-        handleChain(id);
-      } catch (e) {
-        // ignore
-      }
-      // wire up listeners if available
-      if (p.on) {
-        p.on("accountsChanged", handleAccounts);
-        p.on("chainChanged", handleChain);
-      }
-      return { success: true };
+      const web3Wallet = new BrowserConnectClient();
+      
+      // Store client instance for later use (for signing transactions)
+      setGalaClient(web3Wallet);
+
+      // Set up account change listener
+      web3Wallet.on("accountChanged", (account) => {
+        if (account) {
+          const address = Array.isArray(account) ? account[0] : account;
+          setAccount(address); 
+          localStorage.setItem("gala_wallet_address", address);
+          console.log("✅ GalaChain wallet account changed:", address);
+        } else {
+          setAccount(null);
+          setGalaClient(null);
+          localStorage.removeItem("gala_wallet_address");
+          console.log("ℹ️ GalaChain wallet disconnected");
+        }
+      });
     } catch (err) {
       console.error("wallet connect failed", err);
       return { error: err };
     }
   }, [detectProvider, handleAccounts, handleChain]);
+
+  const connectToWallet = useCallback(async (walletType) => {
+    if (typeof window === "undefined") {
+      return { error: "no_provider" };
+    }
+
+    try {
+      let p = null;
+
+      if (walletType === "metamask") {
+        // Check for MetaMask
+        if (window.ethereum && window.ethereum.isMetaMask) {
+          p = window.ethereum;
+        } else {
+          return { error: "no_provider" };
+        }
+      } else if (walletType === "gala") {
+        // Check for Gala Wallet
+        if (window.gala) {
+          p = window.gala;
+        } else {
+          // Try using BrowserConnectClient for Gala
+          try {
+            const web3Wallet = new BrowserConnectClient();
+            setGalaClient(web3Wallet);
+            
+            // Set up account change listener
+            web3Wallet.on("accountChanged", (account) => {
+              if (account) {
+                const address = Array.isArray(account) ? account[0] : account;
+                setAccount(address);
+                localStorage.setItem("gala_wallet_address", address);
+                console.log("✅ GalaChain wallet account changed:", address);
+              } else {
+                setAccount(null);
+                setGalaClient(null);
+                localStorage.removeItem("gala_wallet_address");
+                console.log("ℹ️ GalaChain wallet disconnected");
+              }
+            });
+            
+            return { success: true };
+          } catch (err) {
+            console.error("Gala wallet connect failed", err);
+            return { error: err };
+          }
+        }
+      } else {
+        return { error: "invalid_wallet_type" };
+      }
+
+      if (!p) {
+        return { error: "no_provider" };
+      }
+
+      setProvider(p);
+
+      // Request accounts
+      let accounts;
+      if (p.request) {
+        accounts = await p.request({ method: "eth_requestAccounts" });
+      } else if (p.enable) {
+        accounts = await p.enable();
+      } else {
+        return { error: "no_provider" };
+      }
+
+      handleAccounts(accounts);
+
+      // Try to read chain id
+      try {
+        if (p.request) {
+          const id = await p.request({ method: "eth_chainId" });
+          handleChain(id);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // Wire up listeners if available
+      if (p.on) {
+        p.on("accountsChanged", handleAccounts);
+        p.on("chainChanged", handleChain);
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error("wallet connect failed", err);
+      return { error: err };
+    }
+  }, [handleAccounts, handleChain]);
 
   const disconnect = useCallback(() => {
     const p = provider || detectProvider();
@@ -112,10 +207,23 @@ export function WalletProvider({ children }) {
         // ignore
       }
     }
+    // Clean up Gala client if exists
+    if (galaClient) {
+      try {
+        // Remove listeners if available
+        if (galaClient.removeListener) {
+          galaClient.removeListener("accountChanged", handleAccounts);
+        }
+      } catch (e) {
+        // ignore
+      }
+      setGalaClient(null);
+    }
     setAccount(null);
     setChainId(null);
     setProvider(null);
-  }, [provider, detectProvider, handleAccounts, handleChain]);
+    localStorage.removeItem("gala_wallet_address");
+  }, [provider, detectProvider, handleAccounts, handleChain, galaClient]);
 
   useEffect(() => {
     const p = detectProvider();
@@ -159,6 +267,7 @@ export function WalletProvider({ children }) {
     isConnected: Boolean(account),
     connect,
     disconnect,
+    connectToWallet,
   };
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

@@ -2,15 +2,15 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import logoIcon from "../assets/logo-icon.png";
 import { useWallet } from "../context/WalletContext";
+import ConnectWalletModal from "./ConnectWalletModal";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState(null);
   const {
     account,
     isConnected,
-    connect,
     disconnect,
   } = useWallet();
 
@@ -21,28 +21,21 @@ export default function Navbar() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Handle wallet connection
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    setError(null);
-    try {
-      const result = await connect();
-      if (result?.error) {
-        setError(result.error === "no_provider" 
-          ? "No wallet provider found. Please install GalaWallet or MetaMask." 
-          : "Failed to connect wallet");
-      }
-    } catch (err) {
-      setError("Failed to connect wallet");
-      console.error(err);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
   // Handle wallet disconnection
   const handleDisconnect = () => {
     disconnect();
+    setError(null);
+  };
+
+  // Open wallet connection modal
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+    setError(null);
+  };
+
+  // Close wallet connection modal
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
     setError(null);
   };
 
@@ -108,11 +101,10 @@ export default function Navbar() {
             </div>
           ) : (
             <button
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="hidden md:inline-flex px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm md:text-base font-bold shadow-lg shadow-purple-900/40 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={handleOpenModal}
+              className="hidden md:inline-flex px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm md:text-base font-bold shadow-lg shadow-purple-900/40 transition"
             >
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
+              Connect Wallet
             </button>
           )}
 
@@ -165,11 +157,10 @@ export default function Navbar() {
             </div>
           ) : (
             <button
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="mt-2 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-900/40 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={handleOpenModal}
+              className="mt-2 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-900/40 transition"
             >
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
+              Connect Wallet
             </button>
           )}
           {error && (
@@ -180,6 +171,9 @@ export default function Navbar() {
         </div>
       )}
     </nav>
+    
+    {/* Connect Wallet Modal */}
+    <ConnectWalletModal isOpen={isModalOpen} onClose={handleCloseModal} />
     </>
   );
 }
