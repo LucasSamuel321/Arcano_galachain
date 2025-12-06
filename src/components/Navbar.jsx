@@ -5,68 +5,49 @@ import { useWallet } from "../context/WalletContext";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState(null);
   const {
-    walletAddress,
-    isConnecting,
-    error,
-    connectWallet,
-    disconnectWallet,
-    formatAddress,
+    account,
     isConnected,
-    showBridgePrompt,
-    redirectToBridge,
-    dismissBridgePrompt,
-    ethGalaBalance,
+    connect,
+    disconnect,
   } = useWallet();
 
-  // Format ETH-GALA balance for display
-  const formatBalance = (balance) => {
-    if (!balance) return "0";
-    const balanceBigInt = BigInt(balance);
-    const decimals = 18;
-    const divisor = BigInt(10 ** decimals);
-    const whole = balanceBigInt / divisor;
-    const remainder = balanceBigInt % divisor;
-    const decimalsStr = remainder.toString().padStart(decimals, "0").slice(0, 4).replace(/0+$/, "");
-    return decimalsStr ? `${whole}.${decimalsStr}` : whole.toString();
+  // Format wallet address for display (first 6 and last 4 characters)
+  const formatAddress = (address) => {
+    if (!address) return "";
+    if (address.length <= 10) return address;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Handle wallet connection
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setError(null);
+    try {
+      const result = await connect();
+      if (result?.error) {
+        setError(result.error === "no_provider" 
+          ? "No wallet provider found. Please install GalaWallet or MetaMask." 
+          : "Failed to connect wallet");
+      }
+    } catch (err) {
+      setError("Failed to connect wallet");
+      console.error(err);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // Handle wallet disconnection
+  const handleDisconnect = () => {
+    disconnect();
+    setError(null);
   };
 
   return (
     <>
-      {/* ETH-GALA Bridge Prompt Banner */}
-      {showBridgePrompt && (
-        <div className="fixed top-20 left-0 right-0 z-40 bg-gradient-to-r from-amber-600/90 to-orange-600/90 backdrop-blur-md border-b border-amber-400/30 shadow-lg">
-          <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              <span className="text-2xl">🌉</span>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                <span className="text-white font-semibold text-sm sm:text-base">
-                  ETH-GALA Detected!
-                </span>
-                <span className="text-amber-100 text-xs sm:text-sm">
-                  You have {formatBalance(ethGalaBalance)} ETH-GALA. Bridge to GalaChain to play.
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={redirectToBridge}
-                className="px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-sm transition backdrop-blur-sm border border-white/30"
-              >
-                Go to Bridge
-              </button>
-              <button
-                onClick={dismissBridgePrompt}
-                className="px-3 py-2 rounded-lg hover:bg-white/10 text-white text-xl transition"
-                aria-label="Dismiss"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <nav className="fixed top-0 left-0 w-full z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center">
 
@@ -116,10 +97,10 @@ export default function Navbar() {
           {isConnected ? (
             <div className="hidden md:flex items-center gap-3">
               <span className="px-4 py-2 rounded-xl bg-purple-600/80 text-white text-sm font-semibold">
-                {formatAddress(walletAddress)}
+                {formatAddress(account)}
               </span>
               <button
-                onClick={disconnectWallet}
+                onClick={handleDisconnect}
                 className="px-4 py-2 rounded-xl bg-red-600/80 hover:bg-red-700 text-white text-sm font-semibold transition"
               >
                 Disconnect
@@ -127,7 +108,7 @@ export default function Navbar() {
             </div>
           ) : (
             <button
-              onClick={connectWallet}
+              onClick={handleConnect}
               disabled={isConnecting}
               className="hidden md:inline-flex px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm md:text-base font-bold shadow-lg shadow-purple-900/40 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
@@ -173,10 +154,10 @@ export default function Navbar() {
           {isConnected ? (
             <div className="mt-2 flex flex-col gap-2">
               <span className="px-4 py-3 rounded-xl bg-purple-600/80 text-white text-sm font-semibold text-center">
-                {formatAddress(walletAddress)}
+                {formatAddress(account)}
               </span>
               <button
-                onClick={disconnectWallet}
+                onClick={handleDisconnect}
                 className="px-5 py-3 rounded-xl bg-red-600/80 hover:bg-red-700 text-white font-bold transition"
               >
                 Disconnect
@@ -184,7 +165,7 @@ export default function Navbar() {
             </div>
           ) : (
             <button
-              onClick={connectWallet}
+              onClick={handleConnect}
               disabled={isConnecting}
               className="mt-2 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-900/40 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
