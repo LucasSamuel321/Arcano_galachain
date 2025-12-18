@@ -12,6 +12,7 @@
   "dependencies": {
     "@gala-chain/connect": "^2.6.1",
     "@tailwindcss/vite": "^4.1.17",
+    "@web3icons/react": "^4.1.4",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
