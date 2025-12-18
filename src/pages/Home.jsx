@@ -35,7 +35,7 @@ export default function Home() {
         <p className="text-lg md:text-2xl text-gray-200 mb-12 animate-fadeIn delay-150">
           Discover mystical Eggs, hatch powerful creatures, evolve them into Titans,
           and battle players worldwide — powered by
-          <span className="text-purple-400 font-semibold"> GalaChain</span>.
+          <span className="text-purple-400 font-semibold"> GalaChain</span>.(Lucas Samuel)
         </p>
 
         {/* AAA BUTTONS */}
